@@ -89,7 +89,7 @@ window.onload = function() {
   ],
   "info": {
     "title": "Blockets SplitPayments API",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "The Blockets Split Payments API is an interface that a ticket-selling service can dispatch to, to handle the actual payments of these tickets.\n\nWhen a Payment has been completed, the monetary amounts of ticket(s) that were sold will be divided as indicated in the request over the different parties.\n\nPaying these parties will happen as soon as either/or:\n- A set threshold is reached.\n- Multiple days of inactivity have happened.\n\n_(This is to keep transaction costs low)_\n\nThis means that parties will have their money a lot earlier than when they have to wait for an event to have occurred!\n\nMoney to give the parties can be indicated either as a fixed amount (in eurocents), or as a fraction (where the sum of the numerators of all parties involved in this ticket is used as the common denominator).\n\nBecause it is the only sensible approach, the fixed amounts are first subtracted from the ticket price, and then the rest is divided over the fraction parties.\n\nAttempts to create a ticket whose price is lower than the sum of the fixed amounts will be rejected by the API.\n"
   },
   "paths": {
@@ -117,7 +117,15 @@ window.onload = function() {
       },
       "get": {
         "summary": "Lists all (your) Events.",
-        "description": "Returns list of events for this account. TODO Pagination",
+        "description": "Returns list of events for this account.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/items_per_page"
+          }
+        ],
         "responses": {
           "200": {
             "description": "A list of identifiers, which can be used in the `/events/{event_identifier}` call.",
@@ -159,7 +167,7 @@ window.onload = function() {
         ],
         "responses": {
           "200": {
-            "description": "TODO",
+            "description": "Returned when Event was found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -177,15 +185,21 @@ window.onload = function() {
     "/events/{event_identifier}/parties": {
       "get": {
         "summary": "Lists parties who will receive/have received money from event's sold tickets.",
-        "description": "List parties who will receive and/or have received money for this event from the sold tickets.\nTODO pagination\n",
+        "description": "List parties who will receive and/or have received money for this event from the sold tickets.\n",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/items_per_page"
+          },
           {
             "$ref": "#/components/parameters/event_identifier"
           }
         ],
         "responses": {
           "200": {
-            "description": "TODO"
+            "description": "TODO! Exactly what information is known and returned for the payment parties is not yet complete."
           }
         }
       }
@@ -199,7 +213,7 @@ window.onload = function() {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TicketPayments"
+                "$ref": "#/components/schemas/TicketPaymentRequest"
               }
             }
           }
@@ -207,17 +221,6 @@ window.onload = function() {
         "parameters": [
           {
             "$ref": "#/components/parameters/event_identifier"
-          },
-          {
-            "name": "callback_url",
-            "in": "query",
-            "description": "This path will be called once the payment has completed, failed or timed out.\n",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uri",
-              "example": "https://my-server.com"
-            }
           }
         ],
         "responses": {
@@ -274,8 +277,14 @@ window.onload = function() {
       },
       "get": {
         "summary": "List ticket payments made under this event.",
-        "description": "TODO Pagination\n",
+        "description": "Returns a list of identifiers indicating all TicketPayments made so far for this event.\n",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/items_per_page"
+          },
           {
             "$ref": "#/components/parameters/event_identifier"
           }
@@ -324,7 +333,7 @@ window.onload = function() {
         ],
         "responses": {
           "200": {
-            "description": "TODO",
+            "description": "Returned when ticket payment was found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -400,7 +409,7 @@ window.onload = function() {
           },
           "iban": {
             "type": "string",
-            "description": "Should be a valid International Bank Account Number.\nTODO Validate if this is all information that Mollie needs to execute split payments.\n",
+            "description": "Should be a valid International Bank Account Number.\n",
             "example": "NL91ABNA0417164300"
           }
         },
@@ -426,11 +435,34 @@ window.onload = function() {
           },
           "iban": {
             "type": "string",
-            "description": "Should be a valid International Bank Account Number.\nTODO Validate if this is all information that Mollie needs to execute split payments.\n",
+            "description": "Should be a valid International Bank Account Number.\n",
             "example": "NL91ABNA0417164300"
           }
         },
         "type": "object"
+      },
+      "TicketPaymentRequest": {
+        "properties": {
+          "ticket_payments": {
+            "$ref": "#/components/schemas/TicketPayments"
+          },
+          "callback_url": {
+            "description": "This URL will be called once the payment status changes (completed, failed or timed out).\n",
+            "type": "string",
+            "format": "uri",
+            "example": "https://my-server.com/webhooks/payment_callback"
+          },
+          "redirect_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The location to redirect the customer to once payment has finished",
+            "example": "https://my-server.com/payment_success"
+          },
+          "payment_description": {
+            "type": "string",
+            "description": "This will be shown to the customer on their bank or card statement,\nand should be used to clarify what exactly the customer has bought.\n"
+          }
+        }
       },
       "TicketPayment": {
         "properties": {
@@ -507,11 +539,35 @@ window.onload = function() {
           "maxLength": 64
         },
         "example": "4d4a10e8-383c-4a79-b9a7-c612ccf6607a"
+      },
+      "page_number": {
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 0
+        },
+        "name": "page_number",
+        "description": "The number of page to look up. `0` indicates the first page, and also the default value of this parameter.\n"
+      },
+      "items_per_page": {
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 100
+        },
+        "name": "items_per_page",
+        "description": "The amount of items to return per page. Should be an integer between 1 and 100. `30` is the default value.\n"
       }
     }
   }
-},
-    dom_id: '#swagger-ui',
+}
+      
+      ,
+      dom_id: '#swagger-ui',
     deepLinking: true,
     presets: [
       SwaggerUIBundle.presets.apis,
